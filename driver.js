@@ -156,5 +156,38 @@ function get_encoding(callback) {
     command_callback= callback;
 }
 
+function command_builder(command, args, kwargs) {
+    var result = [command];
+    kwargs.keys.forEach(function(item,index,array){
+        val = kwargs[item];
+        if (val !== undefined){
+            arg = item.replace("_","-");
+            if (arg !== "-") {
+                if (arg.length === 1)
+                    arg = '-' + arg
+                else
+                    arg = '--' + arg
+            }
+            if (val === false || val === undefined) {
+            } else if (val === true) {
+                result.push(arg);
+            } else if (val instanceof Array) {
+                val.forEach(function(item){
+                    result.push(arg);
+                    result.push(''+item);
+                });
+            } else {
+                result.push(arg);
+                result.push(''+val);
+            }
+        }
+    });
+    args.forEach(function(val,index,array){
+        result.push(val);
+    });
+    return result;
+}
+
 exports.run_command = run_command;
 exports.get_encoding= get_encoding;
+exports.command_builder = command_builder;
