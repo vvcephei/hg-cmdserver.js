@@ -1,6 +1,7 @@
 var debug = false;
 var util  = require('util');
 
+// FIXME: need to specify the cwd with an argument to this module, somehow
 var spawn = require('child_process').spawn,
     hg    = spawn('hg', ['serve', '--cmdserver','pipe'], {cwd:process.argv[2]});
 

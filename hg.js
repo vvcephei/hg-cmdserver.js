@@ -1,4 +1,4 @@
-var hg_util = require('./hg_util.js');
+var driver = require('./driver.js');
 
 var result_printer = function(name) {
     return function(code,out){
@@ -10,9 +10,9 @@ var result_printer = function(name) {
     };
 };
 var script = [
-    function(){hg_util.get_encoding(result_printer("get_encoding"))},
-    function(){hg_util.run_command("summary", result_printer("run_command('summary')"))},
-    function(){hg_util.run_command("stat", result_printer("run_command('stat')"))},
+    function(){driver.get_encoding(result_printer("get_encoding"))},
+    function(){driver.run_command("summary", result_printer("run_command('summary')"))},
+    function(){driver.run_command("stat", result_printer("run_command('stat')"))},
 ]
 
 script.shift()();
