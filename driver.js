@@ -1,3 +1,7 @@
+// NOTE about this file: This is a "low level" driver for the "hg serve --cmdserver pipe" api. 
+// You probably don't want to use it, unless I haven't implemented some hg command in hg.js
+// If that's the case, I'd like for you to let me know or send me a pull request if you do it yourself.
+
 var debug = false;
 var util  = require('util');
 
@@ -26,7 +30,7 @@ function buffer_concat(buffer0, buffer1){
 
 var buffered_input = new Buffer(0);
 function read_packet() {
-    if (buffered_input.length === 0) {
+    if (buffered_input.length < 5) {
         return false;
     }
 
