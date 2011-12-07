@@ -92,11 +92,13 @@ hg.stdout.on('data', function (input) {
                     break;
                 case 'e':
                     // error channel
-                    console.log("Error: "+packet.data);
+                    buffered_error = buffer_concat(buffered_error, packet.data);
+                    //console.log("Error: "+packet.data);
                     break;
                 case 'r':
                     // result channel
-                    command_callback(parse_exit_code(packet.data), buffered_output);
+                    if (command_callback)
+                        command_callback(parse_exit_code(packet.data), buffered_output, buffered_error);
                     //console.log("result: "+parse_exit_code(packet.data));
                     break;
                 case 'd':
@@ -136,6 +138,7 @@ hg.on('exit', function (code) {
 });
 
 var buffered_output = new Buffer(0);
+var buffered_error  = new Buffer(0);
 var command_callback;
 var parse_exit_code;
 function run_command(argv, callback) {
@@ -147,47 +150,62 @@ function run_command(argv, callback) {
     hg.stdin.write(argv);
     parse_exit_code = function(numbuf){return numbuf.readUInt32BE(0);};
     buffered_output = new Buffer(0);
+    buffered_error = new Buffer(0);
     command_callback= callback;
 }
 function get_encoding(callback) {
     hg.stdin.write("getencoding\n");
     parse_exit_code = function(numbuf){return numbuf.toString('utf8',0);};
     buffered_output = new Buffer(0);
+    buffered_error = new Buffer(0);
     command_callback= callback;
 }
 
 function command_builder(command, args, kwargs) {
     var result = [command];
-    kwargs.keys.forEach(function(item,index,array){
-        val = kwargs[item];
-        if (val !== undefined){
-            arg = item.replace("_","-");
-            if (arg !== "-") {
-                if (arg.length === 1)
-                    arg = '-' + arg
-                else
-                    arg = '--' + arg
-            }
-            if (val === false || val === undefined) {
-            } else if (val === true) {
-                result.push(arg);
-            } else if (val instanceof Array) {
-                val.forEach(function(item){
-                    result.push(arg);
-                    result.push(''+item);
-                });
-            } else {
-                result.push(arg);
-                result.push(''+val);
-            }
+    if (kwargs) {
+        if (kwargs.keys === undefined) {
+            throw new TypeError("kwargs must have a 'keys' property");
         }
-    });
-    args.forEach(function(val,index,array){
-        result.push(val);
-    });
+        kwargs.keys.forEach(function(item,index,array){
+            val = kwargs[item];
+            if (val !== undefined){
+                arg = item.replace("_","-");
+                if (arg !== "-") {
+                    if (arg.length === 1)
+                        arg = '-' + arg
+                    else
+                        arg = '--' + arg
+                }
+                if (val === false || val === undefined) {
+                } else if (val === true) {
+                    result.push(arg);
+                } else if (val instanceof Array) {
+                    val.forEach(function(item){
+                        result.push(arg);
+                        result.push(''+item);
+                    });
+                } else {
+                    result.push(arg);
+                    result.push(''+val);
+                }
+            }
+        });
+    }
+    if (args) {
+        args.forEach(function(val,index,array){
+            result.push(val);
+        });
+    }
     return result;
+}
+
+function run_structured_command(args, callback) {
+    run_command(args.join('\u0000'),
+        callback);
 }
 
 exports.run_command = run_command;
 exports.get_encoding= get_encoding;
 exports.command_builder = command_builder;
+exports.run_structured_command = run_structured_command;
