@@ -178,7 +178,82 @@ exports.forget = forget;
 // TODO parents
 // TODO paths
 // TODO pull     *
-// TODO push     *
+/*
+Push changesets from this repository to the specified destination.
+
+This operation is symmetrical to pull: it is identical to a pull in the
+destination repository from the current one.
+
+Returns True if push was successful, False if nothing to push.
+
+rev - the (list of) specified revision and all its ancestors will be pushed
+to the remote repository.
+
+force - override the default behavior and push all changesets on all
+branches.
+
+bookmark - (list of) bookmark to push
+branch - a (list of) specific branch you would like to push
+newbranch - allows push to create a new named branch that is not present at
+the destination. This allows you to only create a new branch without
+forcing other changes.
+
+ssh - specify ssh command to use
+remotecmd - specify hg command to run on the remote side
+insecure - do not verify server certificate (ignoring web.cacerts config)
+*/
+function push(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
+    if (! dest) {
+        dest = [];
+    }
+    var cmd = driver.command_builder('push', dest, {
+        r:rev,
+        f:force,
+        B:bookmark,
+        b:branch,
+        new_branch:newbranch,
+        e:ssh,
+        remotecmd:remotecmd,
+        insecure:insecure,
+        keys:"r f B b new_branch e remotecmd insecure".split(" ")
+    });
+    driver.run_structured_command(cmd,callback);
+}
+function pushJSON(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
+    var wrapped_callback = function(code, out, err) {
+        if (code !== 0 || err.length > 0) {
+            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
+            // I wouldn't expect this to get done anytime soon.
+            callback({
+                code:code,
+                out:out.toString().trim(),
+                err:err.toString().trim(),
+            });
+        } else if (out.length > 0) {
+            var outputs = out.toString().trim().split("\n");
+            var repo = outputs.shift();
+            repo = /pushing to (.*)/.exec(repo);
+            var changeset = outputs.pop();
+            changeset = /added (\d+) changesets with (\d+) changes to (\d+) file.*/.exec(changeset);
+
+            callback({
+                code:code,
+                out:out.toString().trim(),
+                err:err.toString().trim(),
+                repo:repo[1],
+                changeset_count:parseInt(changeset[1]),
+                changes_count  :parseInt(changeset[2]),
+                changed_file_count:parseInt(changeset[3]),
+            });
+        } else {
+            throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
+             + JSON.stringify(wrapper_object(code,out,err)));
+        }
+    };
+    push(wrapped_callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure);
+}
+exports.push = push;
+exports.pushJSON = pushJSON;
 // TODO remove
 // TODO resolve
 // TODO revert
