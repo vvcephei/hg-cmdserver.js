@@ -175,6 +175,28 @@ exports.forget = forget;
 // TODO outgoing
 // TODO parents
 // TODO paths
+
+/*
+Pull changes from a remote repository.
+
+This finds all changes from the repository specified by source and adds
+them to this repository. If source is omitted, the 'default' path will be
+used. By default, this does not update the copy of the project in the
+working directory.
+
+Returns True on success, False if update was given and there were
+unresolved files.
+
+update - update to new branch head if changesets were pulled
+force - run even when remote repository is unrelated
+rev - a (list of) remote changeset intended to be added
+bookmark - (list of) bookmark to pull
+branch - a (list of) specific branch you would like to pull
+ssh - specify ssh command to use
+remotecmd - specify hg command to run on the remote side
+insecure - do not verify server certificate (ignoring web.cacerts config)
+tool - specify merge tool for rebase
+*/
 function pull(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
     var cmd = driver.command_builder('pull',source,{
         r:rev,
@@ -327,5 +349,5 @@ exports.pushJSON = pushJSON;
 // TODO tags
 // TODO summary
 // TODO tip
-// TODO update
+// TODO update   *
 // TODO version
