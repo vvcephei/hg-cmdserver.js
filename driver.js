@@ -180,13 +180,9 @@ function get_encoding(callback) {
 function command_builder(command, args, kwargs) {
     var result = [command];
     if (kwargs) {
-        if (kwargs.keys === undefined) {
-            throw new TypeError("kwargs must have a 'keys' property");
-        }
-        kwargs.keys.forEach(function(item,index,array){
-            val = kwargs[item];
+        Hash(kwargs).forEach(function(val,key){
             if (val !== undefined){
-                arg = item.replace("_","-");
+                arg = key.replace("_","-");
                 if (arg !== "-") {
                     if (arg.length === 1)
                         arg = '-' + arg

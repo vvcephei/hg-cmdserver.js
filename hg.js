@@ -61,7 +61,6 @@ function add(callback, files, dry_run, subrepos, include, exclude) {
         S:subrepos,
         I:include,
         X:exclude,
-        keys:['n','S','I','X'],
     });
     driver.run_structured_command(cmd,callback);
 }
@@ -114,7 +113,6 @@ function commit(callback, message, logfile, addremove, closebranch, date, user, 
         l    : logfile,
         I    : include,
         X    : exclude,
-        keys : "debug m A close_branch d u l I X".split(" ")
     });
     driver.run_structured_command(cmd, callback);
 }
@@ -158,7 +156,7 @@ function forget(callback, files, include, exclude) {
     if (typeof(files) === "string") {
         files = [files];
     }
-    var cmd = driver.command_builder("forget",files,{I:include,X:exclude,keys:['I','X']});
+    var cmd = driver.command_builder("forget",files,{I:include,X:exclude});
     driver.run_structured_command(cmd,callback);
 }
 // TODO forgetJSON
@@ -188,7 +186,6 @@ function pull(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,ins
         remotecmd:remotecmd,
         insecure:insecure,
         t:tool,
-        keys:"r u f B b e remotecmd insecure t".split(" ")
     });
     driver.run_structured_command(cmd,callback);
 }
@@ -283,7 +280,6 @@ function push(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remo
         e:ssh,
         remotecmd:remotecmd,
         insecure:insecure,
-        keys:"r f B b new_branch e remotecmd insecure".split(" ")
     });
     driver.run_structured_command(cmd,callback);
 }
