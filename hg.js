@@ -3,11 +3,14 @@ This library mostly implements the same interface as Python-hglib
 Accordingly, I've just copied a lot of the documentation.
 */
 var driver = require('./driver.js');
+exports.setup = function(settings){
+    if ('cwd' in settings)
+        driver.setup(settings.cwd);
+};
+exports.teardown = function(callback){
+    driver.teardown(callback);
+};
 
-function next() {
-    if (script.length !== 0)
-        script.shift()();
-}
 var result_printer = function(name, json_format) {
     if (json_format) {
         return function(obj) {
@@ -25,24 +28,6 @@ var result_printer = function(name, json_format) {
         };
     }
 };
-var script = [
-    function(){driver.get_encoding(result_printer("get_encoding"))},
-    function(){driver.run_command("summary", result_printer("run_command('summary')"))},
-    function(){driver.run_command("stat", result_printer("run_command('stat')"))},
-    //function(){add(['test', 'test2'],result_printer("add_function(['test','test2'])"),true)},
-    //function(){add(['test', 'test2'],result_printer("add_function(['test','test2'])"))},
-    //function(){add(['test'],result_printer("add_function(['test'])"))},
-    function(){add(['test2'],result_printer("add_function(['test2'])"))},
-    function(){commit('commit message',result_printer('commit'))},
-    function(){addJSON('test',result_printer("addJSON('test')", true))},
-    function(){addJSON([],result_printer("addJSON([])", true))},
-    function(){commitJSON('commit message',result_printer('commit', true))},
-    function(){commitJSON('commit message',result_printer('commit', true))},
-    //function(){add(['test', 'test2'])}, // no callback defined: will hang, since we can't call the next command.
-    function(){process.exit()},
-]
-
-next();
 
 function wrapper_object(code, out, err) { return {code:code,out:out.toString(),err:err.toString()} }
 function plain_json_output_wrapper(callback) {
@@ -169,7 +154,17 @@ exports.commitJSON = commitJSON;
 // TODO copy
 // TODO diff
 // TODO export
-// TODO forget
+function forget(files, callback, include, exclude) {
+    if (typeof(files) === "string") {
+        files = [files];
+    }
+    var cmd = driver.command_builder("forget",files,{I:include,X:exclude,keys:['I','X']});
+    driver.run_structured_command(cmd,callback);
+}
+// TODO forgetJSON
+exports.forget = forget;
+
+
 // TODO grep
 // TODO heads
 // TODO identity

@@ -2,23 +2,39 @@
 // You probably don't want to use it, unless I haven't implemented some hg command in hg.js
 // If that's the case, I'd like for you to let me know or send me a pull request if you do it yourself.
 
+var hg;
+var teardown_callback;
+exports.setup = function(working_directory){
+    hg = spawn('hg', ['serve', '--cmdserver','pipe'], {cwd:working_directory});
+    teardown_callback = function(){};
+    hg.stdout.on('data', stdout_listener);
+    hg.stderr.on('data', stderr_listener);
+    hg.on('exit', exit_listener);
+};
+exports.teardown = function(callback){
+    teardown_callback = callback;
+    hg.stdin.end();
+};
+function stderr_listener(data) {
+    console.log('ps stderr: ' + data);
+}
+
+function exit_listener(code) {
+    console.log('hg process exited with code ' + code);
+    teardown_callback();
+    hg = undefined;
+}
+
 var debug = false;
 var util  = require('util');
 
 // FIXME: need to specify the cwd with an argument to this module, somehow
-var spawn = require('child_process').spawn,
-    hg    = spawn('hg', ['serve', '--cmdserver','pipe'], {cwd:process.argv[2]});
+var spawn = require('child_process').spawn;
 
 var result_printer = function(code,out){
             console.log('get_encoding:\n  |code:<<<'+code+'>>>\n  |out:<<<'+out+'>>>');
             console.log(out);
         };
-if (require.main === module) {
-    var script = [
-        function(){get_encoding(result_printer)},
-        //function(){run_command("summary", result_printer)},
-    ];
-}
 
 // could do this with arbitrary #s of args TODO
 function buffer_concat(buffer0, buffer1){
@@ -74,7 +90,7 @@ function parse_hello(packet) {
 }
 
 
-hg.stdout.on('data', function (input) {
+function stdout_listener(input){
     if (debug) {
         console.log('\n--------------------');
         console.log('incoming:');
@@ -125,21 +141,9 @@ hg.stdout.on('data', function (input) {
                     process.exit(1);
             }
         }
-        if (require.main === module && script.length > 0) { // debug code
-            script.shift()();
-        }
     }
-});
+}
 
-hg.stderr.on('data', function (data) {
-  console.log('ps stderr: ' + data);
-});
-
-hg.on('exit', function (code) {
-  if (code !== 0) {
-    console.log('hg process exited with code ' + code);
-  }
-});
 
 var buffered_output = new Buffer(0);
 var buffered_error  = new Buffer(0);
@@ -213,3 +217,4 @@ exports.run_command = run_command;
 exports.get_encoding= get_encoding;
 exports.command_builder = command_builder;
 exports.run_structured_command = run_structured_command;
+
