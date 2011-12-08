@@ -50,7 +50,7 @@ exclude - exclude names matching the given patterns
 
 Return whether all given files were added.
 */
-function add(files, callback, dry_run, subrepos, include, exclude) {
+function add(callback, files, dry_run, subrepos, include, exclude) {
     if (typeof(files) === "string") {
         files = [files];
     }
@@ -67,8 +67,8 @@ function add(files, callback, dry_run, subrepos, include, exclude) {
 }
 // This one calls the callback with a JSON object as the argument.
 // this allows us to parse the output if need be.
-function addJSON(files, callback, dry_run, subrepos, include, exclude) {
-    add(files, plain_json_output_wrapper(callback), dry_run, subrepos, include, exclude);
+function addJSON(callback, files, dry_run, subrepos, include, exclude) {
+    add(plain_json_output_wrapper(callback), files, dry_run, subrepos, include, exclude);
 }
 exports.add = add;
 exports.addJSON = addJSON;
@@ -98,7 +98,7 @@ user - record the specified user as committer
 include - include names matching the given patterns
 exclude - exclude names matching the given patterns
 */
-function commit(message, callback, logfile, addremove, closebranch, date, user, include, exclude) {
+function commit(callback, message, logfile, addremove, closebranch, date, user, include, exclude) {
     if (! message && ! logfile) {
         throw Error("must provide message or logfile");
     } else if (message && logfile) {
@@ -118,7 +118,7 @@ function commit(message, callback, logfile, addremove, closebranch, date, user, 
     });
     driver.run_structured_command(cmd, callback);
 }
-function commitJSON(message, callback, logfile, addremove, closebranch, date, user, include, exclude) {
+function commitJSON(callback, message, logfile, addremove, closebranch, date, user, include, exclude) {
     var wrapped_callback = function(code, out, err) {
         if (code !== 0 || err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
@@ -137,7 +137,7 @@ function commitJSON(message, callback, logfile, addremove, closebranch, date, us
                 out:out,
                 err:err,
                 files:outputs,
-                changeset_num:changeset[1],
+                changeset_num:parseInt(changeset[1]),
                 changeset_id :changeset[2],
             });
         } else {
@@ -145,7 +145,7 @@ function commitJSON(message, callback, logfile, addremove, closebranch, date, us
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    commit(message, wrapped_callback, logfile, addremove, closebranch, date, user, include, exclude);
+    commit(wrapped_callback, message, logfile, addremove, closebranch, date, user, include, exclude);
 }
 exports.commit = commit;
 exports.commitJSON = commitJSON;
@@ -154,7 +154,7 @@ exports.commitJSON = commitJSON;
 // TODO copy
 // TODO diff
 // TODO export
-function forget(files, callback, include, exclude) {
+function forget(callback, files, include, exclude) {
     if (typeof(files) === "string") {
         files = [files];
     }
@@ -177,7 +177,75 @@ exports.forget = forget;
 // TODO outgoing
 // TODO parents
 // TODO paths
-// TODO pull     *
+function pull(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
+    var cmd = driver.command_builder('pull',source,{
+        r:rev,
+        u:update,
+        f:force,
+        B:bookmark,
+        b:branch,
+        e:ssh,
+        remotecmd:remotecmd,
+        insecure:insecure,
+        t:tool,
+        keys:"r u f B b e remotecmd insecure t".split(" ")
+    });
+    driver.run_structured_command(cmd,callback);
+}
+function pullJSON(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
+    var wrapped_callback = function(code, out, err) {
+        if (code !== 0 || err.length > 0) {
+            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
+            // I wouldn't expect this to get done anytime soon.
+            callback({
+                code:code,
+                out:out.toString().trim(),
+                err:err.toString().trim(),
+            });
+        } else if (out.length > 0) {
+            var outputs = out.toString().trim().split("\n");
+            var repo = outputs.shift();
+            repo = /pulling from (.*)/.exec(repo);
+            var update_procedure = outputs.pop();
+            var pulled_changes = true;
+            if (update_procedure === "(run 'hg update' to get a working copy)"){
+                update_procedure = "UPDATE";
+            } else if (update_procedure === "no changes found") {
+                update_procedure = "NONE";
+                pulled_changes   = false;
+            } else {
+                throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
+                 + JSON.stringify(wrapper_object(code,out,err)));
+            }
+
+            var result_obj = {
+                code:code,
+                out :out.toString().trim(),
+                err :err.toString().trim(),
+                repo:repo[1],
+                need_update:(update_procedure === "UPDATE"),
+            };
+
+            if (pulled_changes) {
+                var changeset = outputs.pop();
+                changeset = /added (\d+) changesets with (\d+) changes to (\d+) files.*/.exec(changeset);
+                result_obj.changeset_count    = parseInt(changeset[1]);
+                result_obj.changes_count      = parseInt(changeset[2]);
+                result_obj.changed_file_count = parseInt(changeset[3]);
+            }
+
+            callback(result_obj);
+
+        } else {
+            throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
+             + JSON.stringify(wrapper_object(code,out,err)));
+        }
+    };
+    pull(wrapped_callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool);
+}
+exports.pull = pull;
+exports.pullJSON = pullJSON;
+
 /*
 Push changesets from this repository to the specified destination.
 
@@ -238,11 +306,11 @@ function pushJSON(callback, dest, rev, force, bookmark, branch, newbranch, ssh, 
 
             callback({
                 code:code,
-                out:out.toString().trim(),
-                err:err.toString().trim(),
+                out :out.toString().trim(),
+                err :err.toString().trim(),
                 repo:repo[1],
-                changeset_count:parseInt(changeset[1]),
-                changes_count  :parseInt(changeset[2]),
+                changeset_count   :parseInt(changeset[1]),
+                changes_count     :parseInt(changeset[2]),
                 changed_file_count:parseInt(changeset[3]),
             });
         } else {

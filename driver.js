@@ -2,11 +2,17 @@
 // You probably don't want to use it, unless I haven't implemented some hg command in hg.js
 // If that's the case, I'd like for you to let me know or send me a pull request if you do it yourself.
 
+// TODO refactor this so that setup is a factory method a la express.
+
+var Hash = require('hashish');
+
 var hg;
 var teardown_callback;
+var hello = false;
 exports.setup = function(working_directory){
     hg = spawn('hg', ['serve', '--cmdserver','pipe'], {cwd:working_directory});
     teardown_callback = function(){};
+    hello = false;
     hg.stdout.on('data', stdout_listener);
     hg.stderr.on('data', stderr_listener);
     hg.on('exit', exit_listener);
@@ -20,8 +26,8 @@ function stderr_listener(data) {
 }
 
 function exit_listener(code) {
-    console.log('hg process exited with code ' + code);
-    teardown_callback();
+    //console.log('hg process exited with code ' + code);
+    teardown_callback(code);
     hg = undefined;
 }
 
@@ -69,7 +75,6 @@ function read_packet() {
     return packet;
 }
 
-var hello = false;
 function parse_hello(packet) {
     hello = {};
     var hello_arr = packet.data.toString('utf8').split(/\n/);
@@ -118,7 +123,10 @@ function stdout_listener(input){
                 case 'r':
                     // result channel
                     if (command_callback)
-                        command_callback(parse_exit_code(packet.data), buffered_output, buffered_error);
+                        command_callback(
+                            parse_exit_code(packet.data),
+                            buffered_output.toString(),
+                            buffered_error.toString());
                     //console.log("result: "+parse_exit_code(packet.data));
                     break;
                 case 'd':
