@@ -9,8 +9,10 @@ var Hash = require('hashish');
 var hg;
 var teardown_callback;
 var hello = false;
+var cwd;
 exports.setup = function(working_directory){
     hg = spawn('hg', ['serve', '--cmdserver','pipe'], {cwd:working_directory});
+    cwd = working_directory;
     teardown_callback = function(){};
     hello = false;
     hg.stdout.on('data', stdout_listener);
@@ -18,8 +20,12 @@ exports.setup = function(working_directory){
     hg.on('exit', exit_listener);
 };
 exports.teardown = function(callback){
-    teardown_callback = callback;
-    hg.stdin.end();
+    if (hg) {
+        teardown_callback = callback;
+        hg.stdin.end();
+    } else {
+        callback(0);
+    }
 };
 function stderr_listener(data) {
     console.log('ps stderr: ' + data);
@@ -74,9 +80,10 @@ function read_packet() {
         console.log(packet);
     return packet;
 }
+exports.info = function(){return hello};
 
 function parse_hello(packet) {
-    hello = {};
+    hello = {cwd:cwd};
     var hello_arr = packet.data.toString('utf8').split(/\n/);
     hello_arr.forEach(function(val,index,array){
         var result = /\s*([^:\s]*):\s*(.*)/.exec(val);

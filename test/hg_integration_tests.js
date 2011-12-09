@@ -150,6 +150,7 @@ exports.checkout2 = {
     updateJSON: function(test){
         test.expect(9);
         hg.updateJSON(function(obj){
+            console.log(obj);
             test.strictEqual(obj.code,0);
             test.strictEqual(obj.err,'');
             test.strictEqual(obj.message,'');
@@ -161,6 +162,15 @@ exports.checkout2 = {
             test.ok(obj.merged_files instanceof Array);
             test.done();
         });
+    },
+    clone: function(test) {
+        test.expect(1);
+        hg.clone(function(c,o,e){
+            console.log({c:c,o:o,e:e});
+            test.strictEqual(c,0);
+            // todo: clean up by rm -rf 
+            test.done();
+        },'/home/john/test/repo','/home/john/test/auto_checkout_'+Date.now());
     },
     tearDownDriver: function(test) {
         test.expect(1);

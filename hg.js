@@ -4,10 +4,13 @@ Accordingly, I've just copied a lot of the documentation.
 */
     //cmd.push('-0'); TODO NOTE: this appears to make the cmdserver delimit lines with \0 instead of \n
 var driver = require('./driver.js');
+var cwd;
 exports.setup = function(settings){
     if ('cwd' in settings)
         driver.setup(settings.cwd);
+    cwd = settings.cwd;
 };
+exports.info = function(){return driver.info()};
 function teardown(callback){
     driver.teardown(callback);
 };
@@ -85,7 +88,29 @@ exports.addJSON = addJSON;
 // TODO branches
 // TODO bundle
 // TODO cat
-// TODO clone    *
+/*
+Create a copy of an existing repository specified by source in a new
+directory dest.
+
+If dest isn't specified, it defaults to the basename of source.
+
+branch - clone only the specified branch
+updaterev - revision, tag or branch to check out
+revrange - include the specified changeset
+*/
+function clone(callback, source, dest, branch, updaterev, revrange) {
+    if (source === undefined) {
+        source = process.cwd();
+    }
+    var cmd = driver.command_builder('clone', [source, dest], {
+        b:branch,
+        u:updaterev,
+        r:revrange,
+    });
+    driver.run_structured_command(cmd,callback);
+}
+exports.clone = clone;
+// TODO cloneJSON   **
 
 /*
 Commit changes reported by status into the repository.
