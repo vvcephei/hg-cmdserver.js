@@ -122,7 +122,7 @@ exports.checkout2 = {
         test.done();
     },
     pullJSON: function(test){
-        test.expect(8);
+        test.expect(7);
         hg.pullJSON(function(obj){
             test.strictEqual(obj.code,0);
             test.strictEqual(obj.err,'');
@@ -131,17 +131,34 @@ exports.checkout2 = {
             test.strictEqual(typeof(obj.changes_count),"number");
             test.strictEqual(typeof(obj.changed_file_count),"number");
             test.strictEqual(obj.changed_file_count,0);
-            test.strictEqual(obj.need_update,true);
             test.done();
         });
     },
     'pullJSON again': function(test){
-        test.expect(4);
+        test.expect(7);
         hg.pullJSON(function(obj){
             test.strictEqual(obj.code,0);
             test.strictEqual(obj.err,'');
             test.strictEqual(obj.repo,'/home/john/test/repo');
-            test.strictEqual(obj.need_update,false);
+            test.strictEqual(typeof(obj.changeset_count),"number");
+            test.strictEqual(typeof(obj.changes_count),"number");
+            test.strictEqual(typeof(obj.changed_file_count),"number");
+            test.strictEqual(obj.changed_file_count,0);
+            test.done();
+        });
+    },
+    updateJSON: function(test){
+        test.expect(9);
+        hg.updateJSON(function(obj){
+            test.strictEqual(obj.code,0);
+            test.strictEqual(obj.err,'');
+            test.strictEqual(obj.message,'');
+            test.strictEqual(obj.updated,0);
+            test.strictEqual(obj.merged,0);
+            test.strictEqual(obj.removed,0);
+            test.strictEqual(obj.unresolved,0);
+            test.strictEqual(obj.merged_files.length,0);
+            test.ok(obj.merged_files instanceof Array);
             test.done();
         });
     },

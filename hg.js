@@ -223,35 +223,37 @@ function pullJSON(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd
             });
         } else if (out.length > 0) {
             var outputs = out.toString().trim().split("\n");
-            var repo = outputs.shift();
-            repo = /pulling from (.*)/.exec(repo);
-            var update_procedure = outputs.pop();
-            var pulled_changes = true;
-            if (update_procedure === "(run 'hg update' to get a working copy)"){
-                update_procedure = "UPDATE";
-            } else if (update_procedure === "no changes found") {
-                update_procedure = "NONE";
-                pulled_changes   = false;
-            } else {
-                throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
-                 + JSON.stringify(wrapper_object(code,out,err)));
+            //console.log(outputs);
+            var line = outputs.shift();
+            var repo = /pulling from (.*)/.exec(line);
+            while ((line = outputs.shift()).match(/(searching for changes)|(adding changesets)|(adding manifests)|(adding file changes)/)) {} // skip all these lines
+            var changeset = /added (\d+) changesets with (\d+) changes to (\d+) files( (.\d+) heads)?/.exec(line);
+            if (! changeset) {
+                outputs.unshift(line);
             }
+            var notes = outputs.join("\n");
 
             var result_obj = {
                 code:code,
                 out :out.toString().trim(),
                 err :err.toString().trim(),
                 repo:repo[1],
-                need_update:(update_procedure === "UPDATE"),
+                notes:notes,
+                changeset_count:0,
+                changes_count:0,
+                changed_file_count:0,
+                changed_heads:0,
             };
 
-            if (pulled_changes) {
-                var changeset = outputs.pop();
-                changeset = /added (\d+) changesets with (\d+) changes to (\d+) files.*/.exec(changeset);
+            if (changeset) {
                 result_obj.changeset_count    = parseInt(changeset[1]);
                 result_obj.changes_count      = parseInt(changeset[2]);
                 result_obj.changed_file_count = parseInt(changeset[3]);
+                if (changeset[5] !== undefined) {
+                    result_obj.changed_heads  = changeset[5];
+                }
             }
+            //console.log(result_obj);
 
             callback(result_obj);
 
@@ -349,5 +351,64 @@ exports.pushJSON = pushJSON;
 // TODO tags
 // TODO summary
 // TODO tip
-// TODO update   *
+
+/*
+Update the repository's working directory to changeset specified by rev.
+If rev isn't specified, update to the tip of the current named branch.
+
+Return the number of files (updated, merged, removed, unresolved)
+
+clean - discard uncommitted changes (no backup)
+check - update across branches if no uncommitted changes
+date - tipmost revision matching date
+*/
+function update(callback, rev, clean, check, date){
+    var cmd = driver.command_builder('update',null,{
+        r:rev,
+        C:clean,
+        c:check,
+        d:date,
+    });
+    driver.run_structured_command(cmd,callback);
+}
+function updateJSON(callback, rev, clean, check, date){
+    var wrapped_callback = function(code,out,err){
+        if ((code !== 0 && code !== 1) || err.length > 0) {
+            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
+            // I wouldn't expect this to get done anytime soon.
+            callback({
+                code:code,
+                out:out.toString().trim(),
+                err:err.toString().trim(),
+            });
+        } else if (out.length > 0) {
+            var outv = out.trim().split("\n");
+            var merged_files = [];
+            var line;
+            while ((line = outv.shift()).match(/merging .*/)) {
+                merged_files.push(/merging (.*)/.exec(line)[1]);
+            }
+            var summary = /(\d+) files updated, (\d+) files merged, (\d+) files removed, (\d+) files unresolved/.exec(line);
+            var message = outv.join("\n");
+
+            callback({
+                code:code,
+                out:out.toString().trim(),
+                err:err.toString().trim(),
+                updated: parseInt(summary[1]),
+                merged : parseInt(summary[2]),
+                removed: parseInt(summary[3]),
+                unresolved: parseInt(summary[4]),
+                merged_files: merged_files,
+                message: message,
+            });
+        } else {
+            throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
+             + JSON.stringify(wrapper_object(code,out,err)));
+        }
+    };
+    update(wrapped_callback, rev, clean, check, date);
+}
+exports.update = update;
+exports.updateJSON = updateJSON;
 // TODO version
