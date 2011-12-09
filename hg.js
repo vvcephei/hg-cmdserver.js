@@ -2,14 +2,16 @@
 This library mostly implements the same interface as Python-hglib
 Accordingly, I've just copied a lot of the documentation.
 */
+    //cmd.push('-0'); TODO NOTE: this appears to make the cmdserver delimit lines with \0 instead of \n
 var driver = require('./driver.js');
 exports.setup = function(settings){
     if ('cwd' in settings)
         driver.setup(settings.cwd);
 };
-exports.teardown = function(callback){
+function teardown(callback){
     driver.teardown(callback);
 };
+exports.teardown = teardown;
 
 var result_printer = function(name, json_format) {
     if (json_format) {
@@ -167,12 +169,45 @@ exports.forget = forget;
 // TODO heads
 // TODO identity
 // TODO import
-// TODO incoming
+// TODO incoming  **
 // TODO log
 // TODO manifest
-// TODO merge    *
+/*
+Merge working directory with rev. If no revision is specified, the working
+directory's parent is a head revision, and the current branch contains
+exactly one other head, the other head is merged with by default.
+
+The current working directory is updated with all changes made in the
+requested revision since the last common predecessor revision.
+
+Files that changed between either parent are marked as changed for the
+next commit and a commit must be performed before any further updates to
+the repository are allowed. The next commit will have two parents.
+
+force - force a merge with outstanding changes
+tool - can be used to specify the merge tool used for file merges. It
+overrides the HGMERGE environment variable and your configuration files.
+
+cb - controls the behaviour when Mercurial prompts what to do with regard
+to a specific file, e.g. when one parent modified a file and the other
+removed it. It can be one of merge.handlers, or a function that gets a
+single argument which are the contents of stdout. It should return one
+of the expected choices (a single character).
+*/
+var merge_handlers = { // FIXME Weirdly, hg is not working for me the way the doc says it should.
+    die: teardown,     // merge is not prompting, but update is, but then it is not /really/ prompting...
+    yes: function(stdout){return 'y';}, //not sure if this is appropriate
+};
+function merge(callback, rev, force, tool, prompt_handler) {
+    if (prompt_handler === undefined) {
+        prompt_handler = merge_handlers.die;
+    }
+    var cmd = driver.cmdbuilder('merge',[],{r:rev,f:force,t:tool});
+    driver.run_structured_command(cmd,callback,prompt_handler);
+}
+// TODO mergeJSON   ** 
 // TODO move
-// TODO outgoing
+// TODO outgoing    **
 // TODO parents
 // TODO paths
 
@@ -346,7 +381,127 @@ exports.pushJSON = pushJSON;
 // TODO resolve
 // TODO revert
 // TODO root
-// TODO status   *
+/*
+Return status of files in the repository as a list of (code, file path)
+where code can be:
+
+        M = modified
+        A = added
+        R = removed
+        C = clean
+        ! = missing (deleted by non-hg command, but still tracked)
+        ? = untracked
+        I = ignored
+          = origin of the previous file listed as A (added)
+
+rev - show difference from (list of) revision
+change - list the changed files of a revision
+all - show status of all files
+modified - show only modified files
+added - show only added files
+removed - show only removed files
+deleted - show only deleted (but tracked) files
+clean - show only files without changes
+unknown - show only unknown (not tracked) files
+ignored - show only ignored files
+copies - show source of copied files
+subrepos - recurse into subrepositories
+include - include names matching the given patterns
+exclude - exclude names matching the given patterns
+*/
+function status(callback, rev, change, all, modified, added, removed, deleted, clean,
+                unknown, ignored, copies, subrepos, include, exclude) {
+    if (rev && change) {
+        throw Error("cannot specify both rev and change");
+    }
+    cmd = driver.command_builder('status', [], {
+        r:rev,
+        change:change,
+        A:all,
+        m:modified,
+        a:added,
+        r:removed,
+        d:deleted,
+        c:clean,
+        u:unknown,
+        i:ignored,
+        C:copies,
+        S:subrepos,
+        I:include,
+        X:exclude,
+    });
+    driver.run_structured_command(cmd,callback);
+}
+function statusJSON(callback, rev, change, all, modified, added, removed, deleted, clean,
+                unknown, ignored, copies, subrepos, include, exclude) {
+    var wrapped_callback = function(code, out, err) {
+        if (code !== 0 || err.length > 0) {
+            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
+            // I wouldn't expect this to get done anytime soon.
+            callback({
+                code:code,
+                out:out.toString().trim(),
+                err:err.toString().trim(),
+            });
+        } else if (out.length > 0) {
+            var outputs = out.toString().trim().split("\n");
+
+            var modified=[],
+                added=[],
+                removed=[],
+                clean=[],
+                missing=[],
+                untracked=[],
+                ignored=[];
+            outputs.forEach(function(val){
+                var val_arr = val.split(" ");
+                switch(val_arr[0]){
+                    case 'M':
+                        modified.push(val_arr[1]);
+                        break;
+                    case 'A':
+                        added.push(val_arr[1]);
+                        break;
+                    case 'R':
+                        removed.push(val_arr[1]);
+                        break;
+                    case 'C':
+                        clean.push(val_arr[1]);
+                        break;
+                    case '!':
+                        missing.push(val_arr[1]);
+                        break;
+                    case '?':
+                        untracked.push(val_arr[1]);
+                        break;
+                    case 'I':
+                        ignored.push(val_arr[1]);
+                        break;
+                    case ' ':
+                        var last_added = added.pop();
+                        added.push(last_added+" (source: "+val_arr[1]+")");
+                        break;
+                    default :
+                }
+            });
+            callback({
+                code:code,
+                out :out.toString().trim(),
+                err :err.toString().trim(),
+                modified:modified, added:added, removed:removed, clean:clean,
+                missing:missing, untracked:untracked, ignored:ignored,
+            });
+        } else {
+            throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
+             + JSON.stringify(wrapper_object(code,out,err)));
+        }
+    };
+    status(wrapped_callback, rev, change, all, modified, added, removed, deleted, clean,
+                unknown, ignored, copies, subrepos, include, exclude);
+}
+
+exports.status = status;
+exports.statusJSON = statusJSON;
 // TODO tag
 // TODO tags
 // TODO summary

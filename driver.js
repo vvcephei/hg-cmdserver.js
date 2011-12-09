@@ -31,7 +31,7 @@ function exit_listener(code) {
     hg = undefined;
 }
 
-var debug = false;
+var debug = true;
 var util  = require('util');
 
 // FIXME: need to specify the cwd with an argument to this module, somehow
@@ -105,6 +105,7 @@ function stdout_listener(input){
 
     var packet;
     while (packet = read_packet()) {
+
         if (! hello ) {
             parse_hello(packet);
         } else {
@@ -132,17 +133,20 @@ function stdout_listener(input){
                 case 'd':
                     // debug channel
                     console.log("DEBUG: "+packet.data);
+                    throw Error();
                     break;
                 case 'I':
                     // Input channel
                     // - length field tells client how many bytes to send
                     console.log("input: "+packet.length);
+                    throw Error();
                     break;
                 case 'L':
                     // Line-based input channel
                     // - length is max number of bytes.
                     // - client should send one line (\n terminated)
                     console.log("lineinput: "+packet.length);
+                    throw Error();
                     break;
                 default:
                     // Unexpected input!
@@ -212,7 +216,7 @@ function command_builder(command, args, kwargs) {
     return result;
 }
 
-function run_structured_command(args, callback) {
+function run_structured_command(args, callback, prompt_callback) {
     run_command(args.join('\u0000'),
         callback);
 }
