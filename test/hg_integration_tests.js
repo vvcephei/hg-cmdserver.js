@@ -1,6 +1,8 @@
 var hg = require('../');
 var hg_serv1;
 var hg_serv2;
+hg_serv1 = hg.createServer({cwd:'/home/john/test/checkout'});
+hg_serv2 = hg.createServer({cwd:'/home/john/test/checkout2'});
 
 function exit0(test){
     return function(code,out,err){
@@ -10,12 +12,6 @@ function exit0(test){
 };
 
 exports.checkout = {
-    setupDriver: function(test){
-        test.expect(0);
-        hg_serv1 = hg.createServer({cwd:'/home/john/test/checkout'});
-        test.done();
-    },
-
     forget: function(test) {
         test.expect(0);
         hg_serv1.forget(function(c,o,e){test.done()},"test test2 test3".split(" "));
@@ -107,20 +103,11 @@ exports.checkout = {
             },'re-adding test3');
         },'test3');
     },
-
-    tearDownDriver: function(test) {
-        test.expect(1);
-        hg_serv1.teardown(function(exit_code){
-            test.strictEqual(exit_code,0);
-            test.done();
-        });
-    },
 };
 
 exports.checkout2 = {
     setupDriver: function(test){
         test.expect(0);
-        hg_serv2 = hg.createServer({cwd:'/home/john/test/checkout2'});
         test.done();
     },
     pullJSON: function(test){
@@ -175,7 +162,10 @@ exports.checkout2 = {
         },'/home/john/test/repo','/home/john/test/auto_checkout_'+Date.now());
     },
     tearDownDriver: function(test) {
-        test.expect(1);
+        test.expect(2);
+        hg_serv1.teardown(function(exit_code){
+            test.strictEqual(exit_code,0);
+        });
         hg_serv2.teardown(function(exit_code){
             test.strictEqual(exit_code,0);
             test.done();
