@@ -65,7 +65,7 @@ Driver.prototype.read_packet = function() {
     return packet;
 };
 
-Driver.prototype.parse_hello = function(obj,packet) {
+function parse_hello (obj,packet) {
     obj.hello = {cwd:obj.cwd};
     var hello_arr = packet.data.toString('utf8').split(/\n/);
     hello_arr.forEach(function(val,index,array){
@@ -98,7 +98,7 @@ function get_stdout_listener(obj) {
         while (packet = obj.read_packet()) {
 
             if (! obj.hello ) {
-                obj.parse_hello(obj,packet);
+                parse_hello(obj,packet);
             } else {
                 // now, we can get down to business
                 switch(packet.channel) {
