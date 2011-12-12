@@ -1,6 +1,4 @@
 var driver = require('../driver.js');
-driver.setup('/home/john/test/checkout');
-
 
 exports.driver = {
 
@@ -23,10 +21,5 @@ exports.driver = {
             ['testcmd','-a','optA','-t','--tru','--another','anotherOption','--list','a','--list','b','--list','c', 'file1','file2']
             );
         test.done();
-    },
-
-    tearDownDriver: function(test) {
-        test.expect(0);
-        driver.teardown(test.done);
     },
 };

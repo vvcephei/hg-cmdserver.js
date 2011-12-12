@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "main": "hg.js",
   "dependencies": {
-      "hashish" : "0.0.4"
+      "hashish" : "0.0.4",
+      "buffertools" : "1.0.5"
   }
 }

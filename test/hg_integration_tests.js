@@ -1,4 +1,6 @@
 var hg = require('../');
+var hg_serv1;
+var hg_serv2;
 
 function exit0(test){
     return function(code,out,err){
@@ -10,25 +12,25 @@ function exit0(test){
 exports.checkout = {
     setupDriver: function(test){
         test.expect(0);
-        hg.setup({cwd:'/home/john/test/checkout'});
+        hg_serv1 = hg.createServer({cwd:'/home/john/test/checkout'});
         test.done();
     },
 
     forget: function(test) {
         test.expect(0);
-        hg.forget(function(c,o,e){test.done()},"test test2 test3".split(" "));
+        hg_serv1.forget(function(c,o,e){test.done()},"test test2 test3".split(" "));
     },
     commit0:function(test) {
         test.expect(0);
-        hg.commit(function(c,o,e){test.done()},"commit")
+        hg_serv1.commit(function(c,o,e){test.done()},"commit")
     },
     addList: function(test) {
         test.expect(1);
-        hg.add(exit0(test),['test2']);
+        hg_serv1.add(exit0(test),['test2']);
     },
     commit1:function(test){
         test.expect(2);
-        hg.commit(function(code,out,err){
+        hg_serv1.commit(function(code,out,err){
             test.strictEqual(code,0);
             test.ok(out.toString().match(/test2\ncommitted changeset \d+:.*/));
             test.done();
@@ -37,14 +39,14 @@ exports.checkout = {
     },
     addFileJSON: function(test) {
         test.expect(1);
-        hg.addJSON(function(obj){
+        hg_serv1.addJSON(function(obj){
             test.strictEqual(obj.code,0,JSON.stringify(obj));
             test.done();
         },'test');
     },
     addAllJSON: function(test) {
         test.expect(2);
-        hg.addJSON(function(obj){
+        hg_serv1.addJSON(function(obj){
             test.strictEqual(obj.code,0,JSON.stringify(obj));
             test.strictEqual(obj.out,'adding test3\n');
             test.done();
@@ -52,7 +54,7 @@ exports.checkout = {
     },
     commitJSON: function(test) {
         test.expect(4);
-        hg.commitJSON(function(obj){
+        hg_serv1.commitJSON(function(obj){
             var str = JSON.stringify(obj);
             test.strictEqual(obj.code,0,str);
             test.deepEqual(obj.files,['test','test3']);
@@ -64,7 +66,7 @@ exports.checkout = {
     },
     commitJSONEmpty: function(test) {
         test.expect(2);
-        hg.commitJSON(function(obj){
+        hg_serv1.commitJSON(function(obj){
             var str = JSON.stringify(obj);
             test.strictEqual(obj.code,1,str);
             test.strictEqual(obj.out,'nothing changed');
@@ -74,7 +76,7 @@ exports.checkout = {
     },
     push: function(test) {
         test.expect(1);
-        hg.push(function(c,o,e){
+        hg_serv1.push(function(c,o,e){
             test.strictEqual(c,0);
             test.done();
         });
@@ -82,17 +84,17 @@ exports.checkout = {
 
     forgetAgain: function(test) {
         test.expect(0);
-        hg.forget(function(c,o,e){
-            hg.commit(function(c,o,e){test.done()},'cleanup');
+        hg_serv1.forget(function(c,o,e){
+            hg_serv1.commit(function(c,o,e){test.done()},'cleanup');
             },
             "test test2 test3".split(" "));
     },
 
     pushJSON: function(test) {
         test.expect(7);
-        hg.add(function(c,o,e){
-            hg.commit(function(c,o,e) {
-                hg.pushJSON(function(obj){
+        hg_serv1.add(function(c,o,e){
+            hg_serv1.commit(function(c,o,e) {
+                hg_serv1.pushJSON(function(obj){
                     test.strictEqual(obj.code,0);
                     test.strictEqual(obj.err,'');
                     test.strictEqual(obj.repo,'/home/john/test/repo');
@@ -108,7 +110,7 @@ exports.checkout = {
 
     tearDownDriver: function(test) {
         test.expect(1);
-        hg.teardown(function(exit_code){
+        hg_serv1.teardown(function(exit_code){
             test.strictEqual(exit_code,0);
             test.done();
         });
@@ -118,12 +120,12 @@ exports.checkout = {
 exports.checkout2 = {
     setupDriver: function(test){
         test.expect(0);
-        hg.setup({cwd:'/home/john/test/checkout2'});
+        hg_serv2 = hg.createServer({cwd:'/home/john/test/checkout2'});
         test.done();
     },
     pullJSON: function(test){
         test.expect(7);
-        hg.pullJSON(function(obj){
+        hg_serv2.pullJSON(function(obj){
             test.strictEqual(obj.code,0);
             test.strictEqual(obj.err,'');
             test.strictEqual(obj.repo,'/home/john/test/repo');
@@ -136,7 +138,7 @@ exports.checkout2 = {
     },
     'pullJSON again': function(test){
         test.expect(7);
-        hg.pullJSON(function(obj){
+        hg_serv2.pullJSON(function(obj){
             test.strictEqual(obj.code,0);
             test.strictEqual(obj.err,'');
             test.strictEqual(obj.repo,'/home/john/test/repo');
@@ -149,7 +151,7 @@ exports.checkout2 = {
     },
     updateJSON: function(test){
         test.expect(9);
-        hg.updateJSON(function(obj){
+        hg_serv2.updateJSON(function(obj){
             console.log(obj);
             test.strictEqual(obj.code,0);
             test.strictEqual(obj.err,'');
@@ -165,7 +167,7 @@ exports.checkout2 = {
     },
     clone: function(test) {
         test.expect(1);
-        hg.clone(function(c,o,e){
+        hg_serv2.clone(function(c,o,e){
             console.log({c:c,o:o,e:e});
             test.strictEqual(c,0);
             // todo: clean up by rm -rf 
@@ -174,7 +176,7 @@ exports.checkout2 = {
     },
     tearDownDriver: function(test) {
         test.expect(1);
-        hg.teardown(function(exit_code){
+        hg_serv2.teardown(function(exit_code){
             test.strictEqual(exit_code,0);
             test.done();
         });

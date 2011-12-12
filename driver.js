@@ -5,187 +5,169 @@
 // TODO refactor this so that setup is a factory method a la express.
 
 var Hash = require('hashish');
+var spawn = require('child_process').spawn;
+var buffertools = require('buffertools');
 
-var hg;
-var teardown_callback;
-var hello = false;
-var cwd;
-exports.setup = function(working_directory){
-    hg = spawn('hg', ['serve', '--cmdserver','pipe'], {cwd:working_directory});
-    cwd = working_directory;
-    teardown_callback = function(){};
-    hello = false;
-    hg.stdout.on('data', stdout_listener);
-    hg.stderr.on('data', stderr_listener);
-    hg.on('exit', exit_listener);
-};
-exports.teardown = function(callback){
-    if (hg) {
-        teardown_callback = callback;
-        hg.stdin.end();
+function Driver(cwd,debug){
+
+    this.debug = debug;
+    this.hello = false;
+    this.cwd   = cwd;
+    this.teardown_cb = function(){};
+    this.buffered_input = new Buffer(0);
+    this.buffered_output = new Buffer(0);
+    this.buffered_error  = new Buffer(0);
+    this.command_callback;
+    this.parse_exit_code;
+    this.hg_proc = spawn('hg', ['serve', '--cmdserver','pipe'], {cwd:cwd});
+
+    var thisobj = this;
+    this.hg_proc.on('exit',function(exit_code){
+        thisobj.teardown_cb(exit_code);
+        thisobj.hg_proc = null;
+    });
+    this.hg_proc.stderr.on('data', function(data){
+        console.log("hg_cmdserv stderr: "+data);
+    });
+    this.hg_proc.stdout.on('data', get_stdout_listener(this));
+}
+
+Driver.prototype.teardown = function(cb) {
+    if (this.hg_proc) {
+        this.teardown_cb = cb;
+        this.hg_proc.stdin.end();
     } else {
-        callback(0);
+        cb(0);
     }
 };
-function stderr_listener(data) {
-    console.log('ps stderr: ' + data);
-}
 
-function exit_listener(code) {
-    //console.log('hg process exited with code ' + code);
-    teardown_callback(code);
-    hg = undefined;
-}
-
-var debug = true;
-var util  = require('util');
-
-// FIXME: need to specify the cwd with an argument to this module, somehow
-var spawn = require('child_process').spawn;
-
-var result_printer = function(code,out){
-            console.log('get_encoding:\n  |code:<<<'+code+'>>>\n  |out:<<<'+out+'>>>');
-            console.log(out);
-        };
-
-// could do this with arbitrary #s of args TODO
-function buffer_concat(buffer0, buffer1){
-    var buffer = new Buffer(buffer0.length + buffer1.length);
-    buffer0.copy(buffer);
-    buffer1.copy(buffer,buffer0.length);
-    return buffer;
-}
-
-var buffered_input = new Buffer(0);
-function read_packet() {
-    if (buffered_input.length < 5) {
+Driver.prototype.read_packet = function() {
+    if (this.buffered_input.length < 5) {
         return false;
     }
 
-    var length  = buffered_input.readUInt32BE(1);
+    var length  = this.buffered_input.readUInt32BE(1);
     var data_offset  = 5;
 
-    if (buffered_input.length >= data_offset+length) {
+    if (this.buffered_input.length >= data_offset+length) {
         var packet = {
-            channel : buffered_input.toString('utf8',0,1),
+            channel : this.buffered_input.toString('utf8',0,1),
             length  : length,
-            data    : buffered_input.slice(data_offset,length+data_offset),
+            data    : this.buffered_input.slice(data_offset,length+data_offset),
         };
-        buffered_input = buffered_input.slice(length+data_offset);
+        this.buffered_input = this.buffered_input.slice(length+data_offset);
     } else {
         // then we didn't get the whole message. just continue buffering.
         return false;
     }
-    if (debug)
+    if (this.debug)
         console.log(packet);
     return packet;
-}
-exports.info = function(){return hello};
+};
 
-function parse_hello(packet) {
-    hello = {cwd:cwd};
+Driver.prototype.parse_hello = function(obj,packet) {
+    obj.hello = {cwd:obj.cwd};
     var hello_arr = packet.data.toString('utf8').split(/\n/);
     hello_arr.forEach(function(val,index,array){
         var result = /\s*([^:\s]*):\s*(.*)/.exec(val);
         switch(result[1]) {
             case "capabilities":
-                hello.capabilities = result[2].trim().split(/\s+/);
+                obj.hello.capabilities = result[2].trim().split(/\s+/);
                 break;
             case "encoding":
-                hello.encoding     = result[2].trim();
+                obj.hello.encoding     = result[2].trim();
                 break;
-            default:
+            default: // ignore everything else
         }
     });
-    if (debug)
+    if (obj.debug)
         console.log(hello);
-}
+};
 
 
-function stdout_listener(input){
-    if (debug) {
-        console.log('\n--------------------');
-        console.log('incoming:');
-        console.log(input);
-    }
-    buffered_input = buffer_concat(buffered_input,input);
+function get_stdout_listener(obj) {
+    return function(input) {
+        if (obj.debug) {
+            console.log('\n--------------------');
+            console.log('incoming:');
+            console.log(input);
+        }
+        obj.buffered_input = buffertools.concat(obj.buffered_input,input);
 
-    var packet;
-    while (packet = read_packet()) {
+        var packet;
+        while (packet = obj.read_packet()) {
 
-        if (! hello ) {
-            parse_hello(packet);
-        } else {
-            // now, we can get down to business
-            switch(packet.channel) {
-                case 'o':
-                    // output channel
-                    buffered_output = buffer_concat(buffered_output, packet.data);
-                    //console.log("output: "+packet.data);
-                    break;
-                case 'e':
-                    // error channel
-                    buffered_error = buffer_concat(buffered_error, packet.data);
-                    //console.log("Error: "+packet.data);
-                    break;
-                case 'r':
-                    // result channel
-                    if (command_callback)
-                        command_callback(
-                            parse_exit_code(packet.data),
-                            buffered_output.toString(),
-                            buffered_error.toString());
-                    //console.log("result: "+parse_exit_code(packet.data));
-                    break;
-                case 'd':
-                    // debug channel
-                    console.log("DEBUG: "+packet.data);
-                    throw Error();
-                    break;
-                case 'I':
-                    // Input channel
-                    // - length field tells client how many bytes to send
-                    console.log("input: "+packet.length);
-                    throw Error();
-                    break;
-                case 'L':
-                    // Line-based input channel
-                    // - length is max number of bytes.
-                    // - client should send one line (\n terminated)
-                    console.log("lineinput: "+packet.length);
-                    throw Error();
-                    break;
-                default:
-                    // Unexpected input!
-                    process.exit(1);
+            if (! obj.hello ) {
+                obj.parse_hello(obj,packet);
+            } else {
+                // now, we can get down to business
+                switch(packet.channel) {
+                    case 'o':
+                        // output channel
+                        obj.buffered_output = buffertools.concat(obj.buffered_output, packet.data);
+                        //console.log("output: "+packet.data);
+                        break;
+                    case 'e':
+                        // error channel
+                        obj.buffered_error = buffertools.concat(obj.buffered_error, packet.data);
+                        //console.log("Error: "+packet.data);
+                        break;
+                    case 'r':
+                        // result channel
+                        if (obj.command_callback)
+                            obj.command_callback(
+                                obj.parse_exit_code(packet.data),
+                                obj.buffered_output.toString(),
+                                obj.buffered_error.toString());
+                        //console.log("result: "+parse_exit_code(packet.data));
+                        break;
+                    case 'd':
+                        // debug channel
+                        console.log("DEBUG: "+packet.data);
+                        throw Error();
+                        break;
+                    case 'I':
+                        // Input channel
+                        // - length field tells client how many bytes to send
+                        console.log("input: "+packet.length);
+                        throw Error();
+                        break;
+                    case 'L':
+                        // Line-based input channel
+                        // - length is max number of bytes.
+                        // - client should send one line (\n terminated)
+                        console.log("lineinput: "+packet.length);
+                        throw Error();
+                        break;
+                    default:
+                        // Unexpected input! the documentation says that clients should terminate
+                        // on obj condition.
+                        throw Error("hg driver: unexpected input");
+                }
             }
         }
-    }
+    };
 }
 
 
-var buffered_output = new Buffer(0);
-var buffered_error  = new Buffer(0);
-var command_callback;
-var parse_exit_code;
-function run_command(argv, callback) {
-    hg.stdin.write("runcommand\n");
+Driver.prototype.run_command = function(arg_str, callback) {
+    this.hg_proc.stdin.write("runcommand\n");
     var length = new Buffer(4);
-    length.writeUInt32BE(argv.length,0);
+    length.writeUInt32BE(arg_str.length,0);
     //console.log(length);
-    hg.stdin.write(length);
-    hg.stdin.write(argv);
-    parse_exit_code = function(numbuf){return numbuf.readUInt32BE(0);};
-    buffered_output = new Buffer(0);
-    buffered_error = new Buffer(0);
-    command_callback= callback;
+    this.hg_proc.stdin.write(length);
+    this.hg_proc.stdin.write(arg_str);
+    this.parse_exit_code = function(numbuf){return numbuf.readUInt32BE(0);};
+    this.buffered_output = new Buffer(0);
+    this.buffered_error = new Buffer(0);
+    this.command_callback= callback;
 }
-function get_encoding(callback) {
-    hg.stdin.write("getencoding\n");
-    parse_exit_code = function(numbuf){return numbuf.toString('utf8',0);};
-    buffered_output = new Buffer(0);
-    buffered_error = new Buffer(0);
-    command_callback= callback;
+Driver.prototype.get_encoding = function(callback) {
+    this.hg_proc.stdin.write("getencoding\n");
+    this.parse_exit_code = function(numbuf){return numbuf.toString('utf8',0);};
+    this.buffered_output = new Buffer(0);
+    this.buffered_error = new Buffer(0);
+    this.command_callback= callback;
 }
 
 function command_builder(command, args, kwargs) {
@@ -223,13 +205,14 @@ function command_builder(command, args, kwargs) {
     return result;
 }
 
-function run_structured_command(args, callback, prompt_callback) {
-    run_command(args.join('\u0000'),
+Driver.prototype.run_structured_command = function(args, callback, prompt_callback) {
+    this.run_command(args.join('\u0000'),
         callback);
 }
 
-exports.run_command = run_command;
-exports.get_encoding= get_encoding;
+Driver.prototype.command_builder = command_builder;
 exports.command_builder = command_builder;
-exports.run_structured_command = run_structured_command;
 
+exports.get_driver = function(config_obj){
+    return new Driver(config_obj.cwd, config_obj.debug);
+}

@@ -4,42 +4,21 @@ Accordingly, I've just copied a lot of the documentation.
 */
     //cmd.push('-0'); TODO NOTE: this appears to make the cmdserver delimit lines with \0 instead of \n
 var driver = require('./driver.js');
-var cwd;
-exports.setup = function(settings){
-    if ('cwd' in settings)
-        driver.setup(settings.cwd);
-    cwd = settings.cwd;
-};
-exports.info = function(){return driver.info()};
-function teardown(callback){
-    driver.teardown(callback);
-};
-exports.teardown = teardown;
 
-var result_printer = function(name, json_format) {
-    if (json_format) {
-        return function(obj) {
-            console.log();
-            console.log(name+":");
-            console.log(obj);
-            next();
-        };
-    } else {
-        return function(code,out,err){
-            console.log();
-            console.log(name+':\n  |code:<<<'+code+'>>>\n  |out:<<<'+JSON.stringify(out.toString())+'>>>\n  |err:<<<'+JSON.stringify(err.toString())+'>>>');
-            //console.log(out);
-            next();
-        };
-    }
-};
-
-function wrapper_object(code, out, err) { return {code:code,out:out.toString(),err:err.toString()} }
-function plain_json_output_wrapper(callback) {
-    return function(code, out, err){
-        callback(wrapper_object(code,out,err));
-        };
+function Hg(config_obj) {
+    this.config_obj = config_obj;
+    this.hg_driver = driver.get_driver(config_obj);
 }
+exports.createServer = function(config_obj) {
+    return new Hg(config_obj);
+}
+
+Hg.prototype.info = function(){return this.hg_driver.hello};
+Hg.prototype.teardown = function(callback){
+    this.hg_driver.teardown(callback);
+};
+
+function wrapper_object(code, out, err) { return {code:code,out:out.toString(),err:err.toString()} };
 
 /*
 Add the specified files on the next commit.
@@ -55,7 +34,7 @@ exclude - exclude names matching the given patterns
 
 Return whether all given files were added.
 */
-function add(callback, files, dry_run, subrepos, include, exclude) {
+Hg.prototype.add = function(callback, files, dry_run, subrepos, include, exclude) {
     if (typeof(files) === "string") {
         files = [files];
     }
@@ -67,15 +46,15 @@ function add(callback, files, dry_run, subrepos, include, exclude) {
         I:include,
         X:exclude,
     });
-    driver.run_structured_command(cmd,callback);
+    this.hg_driver.run_structured_command(cmd,callback);
 }
 // This one calls the callback with a JSON object as the argument.
 // this allows us to parse the output if need be.
-function addJSON(callback, files, dry_run, subrepos, include, exclude) {
-    add(plain_json_output_wrapper(callback), files, dry_run, subrepos, include, exclude);
+Hg.prototype.addJSON = function(callback, files, dry_run, subrepos, include, exclude) {
+    this.add(function(code, out, err){
+        callback(wrapper_object(code,out,err));
+        }, files, dry_run, subrepos, include, exclude);
 }
-exports.add = add;
-exports.addJSON = addJSON;
 
 
 // TODO addremove
@@ -98,7 +77,7 @@ branch - clone only the specified branch
 updaterev - revision, tag or branch to check out
 revrange - include the specified changeset
 */
-function clone(callback, source, dest, branch, updaterev, revrange) {
+Hg.prototype.clone = function(callback, source, dest, branch, updaterev, revrange) {
     if (source === undefined) {
         source = process.cwd();
     }
@@ -107,9 +86,8 @@ function clone(callback, source, dest, branch, updaterev, revrange) {
         u:updaterev,
         r:revrange,
     });
-    driver.run_structured_command(cmd,callback);
+    this.hg_driver.run_structured_command(cmd,callback);
 }
-exports.clone = clone;
 // TODO cloneJSON   **
 
 /*
@@ -124,7 +102,7 @@ user - record the specified user as committer
 include - include names matching the given patterns
 exclude - exclude names matching the given patterns
 */
-function commit(callback, message, logfile, addremove, closebranch, date, user, include, exclude) {
+Hg.prototype.commit = function(callback, message, logfile, addremove, closebranch, date, user, include, exclude) {
     if (! message && ! logfile) {
         throw Error("must provide message or logfile");
     } else if (message && logfile) {
@@ -141,9 +119,9 @@ function commit(callback, message, logfile, addremove, closebranch, date, user, 
         I    : include,
         X    : exclude,
     });
-    driver.run_structured_command(cmd, callback);
+    this.hg_driver.run_structured_command(cmd, callback);
 }
-function commitJSON(callback, message, logfile, addremove, closebranch, date, user, include, exclude) {
+Hg.prototype.commitJSON = function(callback, message, logfile, addremove, closebranch, date, user, include, exclude) {
     var wrapped_callback = function(code, out, err) {
         if (code !== 0 || err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
@@ -170,24 +148,21 @@ function commitJSON(callback, message, logfile, addremove, closebranch, date, us
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    commit(wrapped_callback, message, logfile, addremove, closebranch, date, user, include, exclude);
+    this.commit(wrapped_callback, message, logfile, addremove, closebranch, date, user, include, exclude);
 }
-exports.commit = commit;
-exports.commitJSON = commitJSON;
 
 // TODO config
 // TODO copy
 // TODO diff
 // TODO export
-function forget(callback, files, include, exclude) {
+Hg.prototype.forget = function(callback, files, include, exclude) {
     if (typeof(files) === "string") {
         files = [files];
     }
     var cmd = driver.command_builder("forget",files,{I:include,X:exclude});
-    driver.run_structured_command(cmd,callback);
+    this.hg_driver.run_structured_command(cmd,callback);
 }
 // TODO forgetJSON
-exports.forget = forget;
 
 
 // TODO grep
@@ -220,15 +195,15 @@ single argument which are the contents of stdout. It should return one
 of the expected choices (a single character).
 */
 var merge_handlers = { // FIXME Weirdly, hg is not working for me the way the doc says it should.
-    die: teardown,     // merge is not prompting, but update is, but then it is not /really/ prompting...
+    die: this.teardown,     // merge is not prompting, but update is, but then it is not /really/ prompting...
     yes: function(stdout){return 'y';}, //not sure if this is appropriate
 };
-function merge(callback, rev, force, tool, prompt_handler) {
+Hg.prototype.merge = function(callback, rev, force, tool, prompt_handler) {
     if (prompt_handler === undefined) {
         prompt_handler = merge_handlers.die;
     }
     var cmd = driver.cmdbuilder('merge',[],{r:rev,f:force,t:tool});
-    driver.run_structured_command(cmd,callback,prompt_handler);
+    this.hg_driver.run_structured_command(cmd,callback,prompt_handler);
 }
 // TODO mergeJSON   ** 
 // TODO move
@@ -257,7 +232,7 @@ remotecmd - specify hg command to run on the remote side
 insecure - do not verify server certificate (ignoring web.cacerts config)
 tool - specify merge tool for rebase
 */
-function pull(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
+Hg.prototype.pull = function(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
     var cmd = driver.command_builder('pull',source,{
         r:rev,
         u:update,
@@ -269,9 +244,9 @@ function pull(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,ins
         insecure:insecure,
         t:tool,
     });
-    driver.run_structured_command(cmd,callback);
+    this.hg_driver.run_structured_command(cmd,callback);
 }
-function pullJSON(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
+Hg.prototype.pullJSON = function(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
     var wrapped_callback = function(code, out, err) {
         if (code !== 0 || err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
@@ -322,10 +297,8 @@ function pullJSON(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    pull(wrapped_callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool);
+    this.pull(wrapped_callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool);
 }
-exports.pull = pull;
-exports.pullJSON = pullJSON;
 
 /*
 Push changesets from this repository to the specified destination.
@@ -351,7 +324,7 @@ ssh - specify ssh command to use
 remotecmd - specify hg command to run on the remote side
 insecure - do not verify server certificate (ignoring web.cacerts config)
 */
-function push(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
+Hg.prototype.push = function(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
     if (! dest) {
         dest = [];
     }
@@ -365,9 +338,9 @@ function push(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remo
         remotecmd:remotecmd,
         insecure:insecure,
     });
-    driver.run_structured_command(cmd,callback);
+    this.hg_driver.run_structured_command(cmd,callback);
 }
-function pushJSON(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
+Hg.prototype.pushJSON = function(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
     var wrapped_callback = function(code, out, err) {
         if (code !== 0 || err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
@@ -398,10 +371,8 @@ function pushJSON(callback, dest, rev, force, bookmark, branch, newbranch, ssh, 
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    push(wrapped_callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure);
+    this.push(wrapped_callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure);
 }
-exports.push = push;
-exports.pushJSON = pushJSON;
 // TODO remove
 // TODO resolve
 // TODO revert
@@ -434,7 +405,7 @@ subrepos - recurse into subrepositories
 include - include names matching the given patterns
 exclude - exclude names matching the given patterns
 */
-function status(callback, rev, change, all, modified, added, removed, deleted, clean,
+Hg.prototype.status = function(callback, rev, change, all, modified, added, removed, deleted, clean,
                 unknown, ignored, copies, subrepos, include, exclude) {
     if (rev && change) {
         throw Error("cannot specify both rev and change");
@@ -455,9 +426,9 @@ function status(callback, rev, change, all, modified, added, removed, deleted, c
         I:include,
         X:exclude,
     });
-    driver.run_structured_command(cmd,callback);
+    this.hg_driver.run_structured_command(cmd,callback);
 }
-function statusJSON(callback, rev, change, all, modified, added, removed, deleted, clean,
+Hg.prototype.statusJSON = function(callback, rev, change, all, modified, added, removed, deleted, clean,
                 unknown, ignored, copies, subrepos, include, exclude) {
     var wrapped_callback = function(code, out, err) {
         if (code !== 0 || err.length > 0) {
@@ -521,12 +492,10 @@ function statusJSON(callback, rev, change, all, modified, added, removed, delete
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    status(wrapped_callback, rev, change, all, modified, added, removed, deleted, clean,
+    this.status(wrapped_callback, rev, change, all, modified, added, removed, deleted, clean,
                 unknown, ignored, copies, subrepos, include, exclude);
 }
 
-exports.status = status;
-exports.statusJSON = statusJSON;
 // TODO tag
 // TODO tags
 // TODO summary
@@ -542,16 +511,16 @@ clean - discard uncommitted changes (no backup)
 check - update across branches if no uncommitted changes
 date - tipmost revision matching date
 */
-function update(callback, rev, clean, check, date){
+Hg.prototype.update = function(callback, rev, clean, check, date){
     var cmd = driver.command_builder('update',null,{
         r:rev,
         C:clean,
         c:check,
         d:date,
     });
-    driver.run_structured_command(cmd,callback);
+    this.hg_driver.run_structured_command(cmd,callback);
 }
-function updateJSON(callback, rev, clean, check, date){
+Hg.prototype.updateJSON = function(callback, rev, clean, check, date){
     var wrapped_callback = function(code,out,err){
         if ((code !== 0 && code !== 1) || err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
@@ -587,8 +556,6 @@ function updateJSON(callback, rev, clean, check, date){
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    update(wrapped_callback, rev, clean, check, date);
+    this.update(wrapped_callback, rev, clean, check, date);
 }
-exports.update = update;
-exports.updateJSON = updateJSON;
 // TODO version
