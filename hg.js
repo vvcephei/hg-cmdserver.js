@@ -10,6 +10,7 @@ function Hg(config_obj) {
     this.hg_driver = driver.get_driver(config_obj);
 }
 exports.createServer = function(config_obj) {
+    console.log(config_obj);
     return new Hg(config_obj);
 }
 
@@ -123,25 +124,38 @@ Hg.prototype.commit = function(callback, message, logfile, addremove, closebranc
 }
 Hg.prototype.commitJSON = function(callback, message, logfile, addremove, closebranch, date, user, include, exclude) {
     var wrapped_callback = function(code, out, err) {
-        if (code !== 0 || err.length > 0) {
-            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
-            // I wouldn't expect this to get done anytime soon.
-            callback({
-                code:code,
-                out:out.toString().trim(),
-                err:err.toString().trim(),
-            });
-        } else if (out.length > 0) {
-            var outputs = out.toString().trim().split("\n");
-            var changeset = /committed changeset (\d+):(.+)/.exec(outputs.pop());
+        if ((code === 0 || code === 1 && out.toString().trim() === "nothing changed") && err.length === 0 && out.length > 0) {
+            var stat,
+                changeset_num = undefined,
+                changeset_id  = undefined,
+                outputs = undefined;
+            if (out.toString().trim() === "nothing changed") {
+                stat = "OK:unchanged";
+            } else {
+                stat = "OK:changed";
+                outputs = out.toString().trim().split("\n");
+                var changeset = /committed changeset (\d+):(.+)/.exec(outputs.pop());
+                changeset_num = parseInt(changeset[1]);
+                changeset_id  = changeset[2];
+            }
 
             callback({
                 code:code,
                 out:out,
                 err:err,
                 files:outputs,
-                changeset_num:parseInt(changeset[1]),
-                changeset_id :changeset[2],
+                changeset_num:changeset_num,
+                changeset_id :changeset_id,
+                status:stat
+            });
+        } else if (err.length > 0) {
+            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
+            // I wouldn't expect this to get done anytime soon.
+            callback({
+                code:code,
+                out:out.toString().trim(),
+                err:err.toString().trim(),
+                status:"error"
             });
         } else {
             throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
