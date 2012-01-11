@@ -408,7 +408,17 @@ ssh - specify ssh command to use
 remotecmd - specify hg command to run on the remote side
 insecure - do not verify server certificate (ignoring web.cacerts config)
 */
-Hg.prototype.push = function(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
+Hg.prototype.push = function(args, callback) {
+    var dest = args.dest,
+        rev = args.rev, 
+        force = args.force, 
+        bookmark = args.bookmark, 
+        branch = args.branch, 
+        newbranch = args.newbranch, 
+        ssh = args.ssh, 
+        remotecmd = args.remotecmd, 
+        insecure = args.insecure;
+
     if (! dest) {
         dest = [];
     }
@@ -424,7 +434,7 @@ Hg.prototype.push = function(callback, dest, rev, force, bookmark, branch, newbr
     });
     this.hg_driver.run_structured_command(cmd,callback);
 }
-Hg.prototype.pushJSON = function(callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure){
+Hg.prototype.pushJSON = function(args, callback) {
     var wrapped_callback = function(code, out, err) {
         if (code !== 0 || err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
@@ -461,7 +471,7 @@ Hg.prototype.pushJSON = function(callback, dest, rev, force, bookmark, branch, n
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    this.push(wrapped_callback, dest, rev, force, bookmark, branch, newbranch, ssh, remotecmd, insecure);
+    this.push(args,wrapped_callback);
 }
 // TODO remove
 // TODO resolve
