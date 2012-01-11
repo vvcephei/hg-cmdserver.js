@@ -244,7 +244,17 @@ Hg.prototype.merge = function(callback, rev, force, tool, prompt_handler) {
  * insecure - do not verify server certificate (ignoring web.cacerts config)
  * subrepos - recurse into subrepositories
  */
-Hg.prototype.outgoing = function(callback, revrange, path, force, newest, bookmarks, branch, limit, nomerges, subrepos) {
+Hg.prototype.outgoing = function(args, callback) {
+    var revrange = args.revrange,
+        path = args.path,
+        force = args.force,
+        newest = args.newest,
+        bookmarks = args.bookmarks,
+        branch = args.branch,
+        limit = args.limit,
+        nomerges = args.nomerges,
+        subrepos = args.subrepos;
+
     var cmd = driver.command_builder('outgoing',path, {
             template:'{rev}\\0{node}\\0{tags}\\0{branch}\\0{author}\\0{desc}\\n',
             r: revrange,
@@ -256,7 +266,7 @@ Hg.prototype.outgoing = function(callback, revrange, path, force, newest, bookma
             });
     this.hg_driver.run_structured_command(cmd,callback);
 };
-Hg.prototype.outgoingJSON = function(callback, revrange, path, force, newest, bookmarks, branch, limit, nomerges, subrepos) {
+Hg.prototype.outgoingJSON = function(args, callback) {
     var wrapped_callback = function(code,out,err) {
         var results = [];
         var lines = out.toString().trim().split('\n'),
@@ -280,7 +290,7 @@ Hg.prototype.outgoingJSON = function(callback, revrange, path, force, newest, bo
         dataLog('outgoingJSON',result);
         callback(result);
     };
-    this.outgoing(wrapped_callback, revrange, path, force, newest, bookmarks, branch, limit, nomerges, subrepos);
+    this.outgoing(args, wrapped_callback);
 };
 // TODO outgoing    **
 // TODO parents
@@ -436,36 +446,48 @@ Hg.prototype.push = function(args, callback) {
 }
 Hg.prototype.pushJSON = function(args, callback) {
     var wrapped_callback = function(code, out, err) {
-        if (code !== 0 || err.length > 0) {
-            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
-            // I wouldn't expect this to get done anytime soon.
-            callback({
+        var result = {
                 code:code,
                 out:out.toString().trim(),
                 err:err.toString().trim(),
-            });
+            };
+        if (code !== 0 || err.length > 0) {
+            // FIXME need to verify all the possible failure modes by looking at the mercurial code.
+            // I wouldn't expect this to get done anytime soon.
+            result.pushed = false;
+            callback(result);
         } else if (out.length > 0) {
             var outputs = out.toString().trim().split("\n");
             dataLog('pushJSON',outputs);
 
             var repo = outputs.shift();
             repo = /pushing to (.*)/.exec(repo);
-            var changeset = outputs.pop();
+            result.repo = repo[1];
+            var auth = outputs.pop(),
+                changeset;
+            if ( ( auth_match = (/(\S+) is allowed. accepted payload.$/).exec(auth) ) ) {
+                result.auth = auth;
+                changeset = outputs.pop();
+            } else if ( auth === 'abort: authorization failed' ) {
+                result.auth = auth;
+                result.pushed = false;
+                callback(result);
+            } else {
+                changeset = auth;
+            }
+
             if (changeset === "no changes found") {
                 changeset = [changeset,0,0,0];
             } else {
                 changeset = /added (\d+) changesets with (\d+) changes to (\d+) file.*/.exec(changeset);
             }
 
-            callback({
-                code:code,
-                out :out.toString().trim(),
-                err :err.toString().trim(),
-                repo:repo[1],
-                changeset_count   :parseInt(changeset[1]),
-                changes_count     :parseInt(changeset[2]),
-                changed_file_count:parseInt(changeset[3]),
-            });
+            result.changeset_count    = parseInt(changeset[1]);
+            result.changes_count      = parseInt(changeset[2]);
+            result.changed_file_count = parseInt(changeset[3]);
+            result.pushed = true;
+
+            callback(result);
         } else {
             throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
              + JSON.stringify(wrapper_object(code,out,err)));
