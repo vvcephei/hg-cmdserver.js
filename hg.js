@@ -4,13 +4,18 @@ Accordingly, I've just copied a lot of the documentation.
 */
     //cmd.push('-0'); TODO NOTE: this appears to make the cmdserver delimit lines with \0 instead of \n
 var driver = require('./driver.js');
+var dataLog = function(name, data){
+    console.log('\n'+name+': ----')
+    console.log(data);
+    console.log('^^^^^ '+name+'\n')
+};
 
 function Hg(config_obj) {
     this.config_obj = config_obj;
     this.hg_driver = driver.get_driver(config_obj);
 }
 exports.createServer = function(config_obj) {
-    console.log(config_obj);
+    dataLog('createServer',config_obj);
     return new Hg(config_obj);
 }
 
@@ -139,7 +144,7 @@ Hg.prototype.commitJSON = function(callback, message, logfile, addremove, closeb
                 changeset_id  = changeset[2];
             }
 
-            callback({
+            var result = {
                 code:code,
                 out:out,
                 err:err,
@@ -147,7 +152,9 @@ Hg.prototype.commitJSON = function(callback, message, logfile, addremove, closeb
                 changeset_num:changeset_num,
                 changeset_id :changeset_id,
                 status:stat
-            });
+            };
+            dataLog('commitJSON',result);
+            callback(result);
         } else if (err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
             // I wouldn't expect this to get done anytime soon.
@@ -221,6 +228,60 @@ Hg.prototype.merge = function(callback, rev, force, tool, prompt_handler) {
 }
 // TODO mergeJSON   ** 
 // TODO move
+
+/*
+ * Return changesets not found in the specified path or the default push
+ * location.
+ * 
+ * revrange - a (list of) changeset intended to be included in the destination
+ * force - run even when the destination is unrelated
+ * newest - show newest record first
+ * branch - a specific branch you would like to push
+ * limit - limit number of changes displayed
+ * nomerges - do not show merges
+ * ssh - specify ssh command to use
+ * remotecmd - specify hg command to run on the remote side
+ * insecure - do not verify server certificate (ignoring web.cacerts config)
+ * subrepos - recurse into subrepositories
+ */
+Hg.prototype.outgoing = function(callback, revrange, path, force, newest, bookmarks, branch, limit, nomerges, subrepos) {
+    var cmd = driver.command_builder('outgoing',path, {
+            template:'{rev}\\0{node}\\0{tags}\\0{branch}\\0{author}\\0{desc}\\n',
+            r: revrange,
+            f: force,
+            n: newest,
+            B: bookmarks,
+            b: branch,
+            S: subrepos,
+            });
+    this.hg_driver.run_structured_command(cmd,callback);
+};
+Hg.prototype.outgoingJSON = function(callback, revrange, path, force, newest, bookmarks, branch, limit, nomerges, subrepos) {
+    var wrapped_callback = function(code,out,err) {
+        var results = [];
+        var lines = out.toString().trim().split('\n'),
+            split_line;
+        if (lines[2] === 'no changes found') {
+            results = [];
+        } else {
+            for (var i = 2; i < lines.length; i++) {
+                split_line = lines[i].split('\0');
+                results.push({
+                    rev:split_line[0],
+                    node:split_line[1],
+                    tags:split_line[2],
+                    branch:split_line[3],
+                    author:split_line[4],
+                    desc:split_line[5],
+                });
+            }
+        }
+        var result = {code:code,out:out.toString().trim(),err:err.toString().trim(), result:results};
+        dataLog('outgoingJSON',result);
+        callback(result);
+    };
+    this.outgoing(wrapped_callback, revrange, path, force, newest, bookmarks, branch, limit, nomerges, subrepos);
+};
 // TODO outgoing    **
 // TODO parents
 // TODO paths
@@ -272,7 +333,6 @@ Hg.prototype.pullJSON = function(callback,source,rev,update,force,bookmark,branc
             });
         } else if (out.length > 0) {
             var outputs = out.toString().trim().split("\n");
-            //console.log(outputs);
             var line = outputs.shift();
             var repo = /pulling from (.*)/.exec(line);
             while ((line = outputs.shift()).match(/(searching for changes)|(adding changesets)|(adding manifests)|(adding file changes)/)) {} // skip all these lines
@@ -302,7 +362,6 @@ Hg.prototype.pullJSON = function(callback,source,rev,update,force,bookmark,branc
                     result_obj.changed_heads  = changeset[5];
                 }
             }
-            //console.log(result_obj);
 
             callback(result_obj);
 
@@ -366,10 +425,16 @@ Hg.prototype.pushJSON = function(callback, dest, rev, force, bookmark, branch, n
             });
         } else if (out.length > 0) {
             var outputs = out.toString().trim().split("\n");
+            dataLog('pushJSON',outputs);
+
             var repo = outputs.shift();
             repo = /pushing to (.*)/.exec(repo);
             var changeset = outputs.pop();
-            changeset = /added (\d+) changesets with (\d+) changes to (\d+) file.*/.exec(changeset);
+            if (changeset === "no changes found") {
+                changeset = [changeset,0,0,0];
+            } else {
+                changeset = /added (\d+) changesets with (\d+) changes to (\d+) file.*/.exec(changeset);
+            }
 
             callback({
                 code:code,
@@ -453,7 +518,7 @@ Hg.prototype.statusJSON = function(callback, rev, change, all, modified, added, 
                 out:out.toString().trim(),
                 err:err.toString().trim(),
             });
-        } else if (out.length > 0) {
+        } else if (out.length >= 0) {
             var outputs = out.toString().trim().split("\n");
 
             var modified=[],
@@ -494,13 +559,15 @@ Hg.prototype.statusJSON = function(callback, rev, change, all, modified, added, 
                     default :
                 }
             });
-            callback({
+            var result = {
                 code:code,
                 out :out.toString().trim(),
                 err :err.toString().trim(),
                 modified:modified, added:added, removed:removed, clean:clean,
                 missing:missing, untracked:untracked, ignored:ignored,
-            });
+            };
+            dataLog('statusJSON',result);
+            callback(result);
         } else {
             throw Error("Unexpected return from mercurial. hg.js is broken! Please notify the devs. State: "
              + JSON.stringify(wrapper_object(code,out,err)));
