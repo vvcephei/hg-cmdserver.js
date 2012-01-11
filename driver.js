@@ -198,9 +198,13 @@ function command_builder(command, args, kwargs) {
         });
     }
     if (args) {
-        args.forEach(function(val,index,array){
-            result.push(val);
-        });
+        if (args.forEach) {
+            args.forEach(function(val,index,array){
+                result.push(val);
+            });
+        } else {
+            result.push(args);
+        }
     }
     return result;
 }

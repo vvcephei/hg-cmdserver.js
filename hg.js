@@ -307,7 +307,18 @@ remotecmd - specify hg command to run on the remote side
 insecure - do not verify server certificate (ignoring web.cacerts config)
 tool - specify merge tool for rebase
 */
-Hg.prototype.pull = function(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
+Hg.prototype.pull = function(args, callback) {
+    var source = args.source, // technically, these are superfluous; they are here for documentation
+        rev = args.rev,
+        update = args.update,
+        force = args.force,
+        bookmark = args.bookmark,
+        branch = args.branch,
+        ssh = args.ssh,
+        remotecmd = args.remotecmd,
+        insecure = args.insecure,
+        tool = args.tool;
+
     var cmd = driver.command_builder('pull',source,{
         r:rev,
         u:update,
@@ -321,7 +332,7 @@ Hg.prototype.pull = function(callback,source,rev,update,force,bookmark,branch,ss
     });
     this.hg_driver.run_structured_command(cmd,callback);
 }
-Hg.prototype.pullJSON = function(callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool){
+Hg.prototype.pullJSON = function(args, callback) {
     var wrapped_callback = function(code, out, err) {
         if (code !== 0 || err.length > 0) {
             // FIXME need to verify all the possible failure modes by looking at the mercurial code.
@@ -370,7 +381,7 @@ Hg.prototype.pullJSON = function(callback,source,rev,update,force,bookmark,branc
              + JSON.stringify(wrapper_object(code,out,err)));
         }
     };
-    this.pull(wrapped_callback,source,rev,update,force,bookmark,branch,ssh,remotecmd,insecure,tool);
+    this.pull(args,wrapped_callback);
 }
 
 /*
