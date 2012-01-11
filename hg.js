@@ -190,7 +190,88 @@ Hg.prototype.forget = function(callback, files, include, exclude) {
 // TODO heads
 // TODO identity
 // TODO import
-// TODO incoming  **
+/*
+ * Return new changesets found in the specified path or the default pull
+ * location.
+ * 
+ * When bookmarks=True, return a list of (name, node) of incoming bookmarks.
+ * 
+ * revrange - a remote changeset or list of changesets intended to be added
+ * force - run even if remote repository is unrelated
+ * newest - show newest record first
+ * bundle - avoid downloading the changesets twice and store the bundles into
+ * the specified file.
+ * 
+ * bookmarks - compare bookmarks (this changes the return value)
+ * branch - a specific branch you would like to pull
+ * limit - limit number of changes returned
+ * nomerges - do not show merges
+ * ssh - specify ssh command to use
+ * remotecmd - specify hg command to run on the remote side
+ * insecure- do not verify server certificate (ignoring web.cacerts config)
+ * subrepos - recurse into subrepositories
+ */
+Hg.prototype.incoming = function (args,callback) {
+    var revrange = args.revrange,
+        path = args.path,
+        force = args.force,
+        newest = args.newest,
+        bundle = args.bundle,
+        bookmarks = args.bookmarks,
+        branch = args.branch,
+        limit  = args.limit,
+        nomerges = args.nomerges,
+        subrepos = args.subrepos;
+
+        var cmd = driver.command_builder('incoming',path, {
+            template:'{rev}\\0{node}\\0{tags}\\0{branch}\\0{author}\\0{desc}\\n',
+            r: revrange,
+            f: force,
+            n: newest,
+            bundle: bundle,
+            B: bookmarks,
+            b: branch,
+            l: limit,
+            M: nomerges,
+            S: subrepos,
+        });
+
+        this.hg_driver.run_structured_command(cmd,callback);
+};
+
+Hg.prototype.incomingJSON = function(args,callback) {
+    var wrapped_callback = function(code,out,err) {
+        var results = [];
+        var lines = out.toString().trim().split('\n'),
+            split_line,
+            i;
+        if (lines[2] === 'no changes found') {
+            results = [];
+        } else {
+            for (i = 2; i < lines.length; i++) {
+                split_line = lines[i].split('\0');
+                results.push({
+                    rev:split_line[0],
+                    node:split_line[1],
+                    tags:split_line[2],
+                    branch:split_line[3],
+                    author:split_line[4],
+                    desc:split_line[5],
+                });
+            }
+        }
+        var result = {
+            code:code,
+            out:out.toString().trim(),
+            err:err.toString().trim(),
+            result:results,
+        };
+        dataLog('incomingJSON',result);
+        callback(result);
+    };
+    this.incoming(args,wrapped_callback);
+};
+
 // TODO log
 // TODO manifest
 /*
