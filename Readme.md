@@ -1,3 +1,5 @@
+# General
+
 This is a Node.js interface to the Mercurial command server
 (http://mercurial.selenic.com/wiki/CommandServer). I wrote it because I needed
 a JS api for mercurial, and I didn't find any lying around. 
@@ -25,7 +27,7 @@ tedious.
 See LICENSE for license information. If you don't like what you see,
 contact me, and I'll consider your request.
 
-==Roadmap==
+# Roadmap
 
 0.0.x     : I'm still working on implementing all the mercurial commands.
 0.x (x>0) : Then, I'll work on verifying my implementation WRT the mercurial
@@ -36,7 +38,7 @@ contact me, and I'll consider your request.
 - I'm reserving the right to change the interface at any time in version 0 and
   subsequently between major versions.
 
-==Style==
+# Style
 
 I'm sorry if my javascript style is crap and/or a heterogeneous mix of
 different styles. I'm working on it, but I'm also busy. If you have some
