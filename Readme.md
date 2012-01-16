@@ -44,7 +44,7 @@ I'm sorry if my javascript style is crap and/or a heterogeneous mix of
 different styles. I'm working on it, but I'm also busy. If you have some
 suggestions, I'd be glad to hear them.
 
-* Installation
+# Installation
 
 This module is published as an npm package, so you can install it all the
 ways you install npm packages, including
@@ -60,7 +60,7 @@ program:
 var hg = require('hg-cmdserver');
 ```
 
-* Testing
+# Testing
 
 I use nodeunit. To run the tests, just install nodeunit and then run
 
