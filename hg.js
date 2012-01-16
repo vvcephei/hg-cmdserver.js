@@ -1,6 +1,11 @@
 /*
 This library mostly implements the same interface as Python-hglib
 Accordingly, I've just copied a lot of the documentation.
+
+See README and LICENSE
+Also see package.json for the version number, etc.
+
+Author: John Roesler <jroesler@gmail.com>
 */
     //cmd.push('-0'); TODO NOTE: this appears to make the cmdserver delimit lines with \0 instead of \n
 var driver = require('./driver.js');

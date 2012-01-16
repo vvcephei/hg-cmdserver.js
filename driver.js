@@ -1,8 +1,15 @@
 // NOTE about this file: This is a "low level" driver for the "hg serve --cmdserver pipe" api. 
 // You probably don't want to use it, unless I haven't implemented some hg command in hg.js
 // If that's the case, I'd like for you to let me know or send me a pull request if you do it yourself.
+/*
+This library mostly implements the same interface as Python-hglib
+Accordingly, I've just copied a lot of the documentation.
 
-// TODO refactor this so that setup is a factory method a la express.
+See README and LICENSE
+Also see package.json for the version number, etc.
+
+Author: John Roesler <jroesler@gmail.com>
+*/
 
 var Hash = require('hashish');
 var spawn = require('child_process').spawn;

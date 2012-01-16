@@ -1,6 +1,7 @@
 {
   "name": "hg-cmdserver",
   "version": "0.0.1",
+  "author" : "John Roesler <jroesler@gmail.com>",
   "main": "hg.js",
   "dependencies": {
       "hashish" : "0.0.4",
