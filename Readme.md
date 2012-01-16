@@ -47,4 +47,4 @@ suggestions, I'd be glad to hear them.
 * Testing
 
 I use nodeunit. To run the tests, just install nodeunit and then run
-$ nodeunit test
+> $ nodeunit test
