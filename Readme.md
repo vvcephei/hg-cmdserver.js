@@ -29,13 +29,13 @@ contact me, and I'll consider your request.
 
 # Roadmap
 
-0.0.x     : I'm still working on implementing all the mercurial commands.
-0.x (x>0) : Then, I'll work on verifying my implementation WRT the mercurial
+* 0.0.x     : I'm still working on implementing all the mercurial commands.
+* 0.x (x>0) : Then, I'll work on verifying my implementation WRT the mercurial
             implementation. When this is done, that means that I have convinced
             myself that this program works correctly for anything you do with
             mercurial.
 
-- I'm reserving the right to change the interface at any time in version 0 and
+* I'm reserving the right to change the interface at any time in version 0 and
   subsequently between major versions.
 
 # Style
