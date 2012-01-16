@@ -8,9 +8,9 @@ var Hash = require('hashish');
 var spawn = require('child_process').spawn;
 var buffertools = require('buffertools');
 
-function Driver(cwd,debug){
+function Driver(cwd,debug_driver){
 
-    this.debug = debug;
+    this.debug_driver = debug_driver;
     this.hello = false;
     this.cwd   = cwd;
     this.teardown_cb = function(){};
@@ -60,7 +60,7 @@ Driver.prototype.read_packet = function() {
         // then we didn't get the whole message. just continue buffering.
         return false;
     }
-    if (this.debug)
+    if (this.debug_driver)
         console.log(packet);
     return packet;
 };
@@ -80,14 +80,14 @@ function parse_hello (obj,packet) {
             default: // ignore everything else
         }
     });
-    if (obj.debug)
-        console.log(hello);
+    if (obj.debug_driver)
+        console.log(obj.hello);
 };
 
 
 function get_stdout_listener(obj) {
     return function(input) {
-        if (obj.debug) {
+        if (obj.debug_driver) {
             console.log('\n--------------------');
             console.log('incoming:');
             console.log(input);
@@ -218,5 +218,5 @@ Driver.prototype.command_builder = command_builder;
 exports.command_builder = command_builder;
 
 exports.get_driver = function(config_obj){
-    return new Driver(config_obj.cwd, config_obj.debug);
+    return new Driver(config_obj.cwd, config_obj.debug_driver);
 }
