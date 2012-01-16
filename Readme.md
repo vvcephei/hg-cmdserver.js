@@ -43,3 +43,8 @@ contact me, and I'll consider your request.
 I'm sorry if my javascript style is crap and/or a heterogeneous mix of
 different styles. I'm working on it, but I'm also busy. If you have some
 suggestions, I'd be glad to hear them.
+
+* Testing
+
+I use nodeunit. To run the tests, just install nodeunit and then run
+$ nodeunit test
